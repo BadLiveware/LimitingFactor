@@ -12,6 +12,7 @@
     <RepositoryUrl>https://github.com/BadLiveware/LimitingFactor.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>linux;sandbox;process;isolation;fuse;overlayfs</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
   </PropertyGroup>
 </Project>
