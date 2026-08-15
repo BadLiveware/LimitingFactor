@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>LimitingFactor.Native</AssemblyName>
+    <RootNamespace>LimitingFactor.Native</RootNamespace>
+    <Description>Native Linux namespace and mount helper packaged for LimitingFactor.</Description>
+    <Version>0.1.0</Version>
+    <Authors>Limiting Factor contributors</Authors>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <NativeHelperRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</NativeHelperRid>
+    <NativeHelperRid Condition="'$(NativeHelperRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</NativeHelperRid>
+    <NativeHelperOut>$(BaseIntermediateOutputPath)native/$(Configuration)/$(NativeHelperRid)/limiting-factor-helper</NativeHelperOut>
+  </PropertyGroup>
+
+  <Target Name="ValidateNativeHelperRid" BeforeTargets="BuildNativeSandboxHelper">
+    <Error Condition="'$(NativeHelperRid)' != 'linux-x64'"
+           Text="LimitingFactor.Native currently supports linux-x64; resolved RID was '$(NativeHelperRid)'." />
+  </Target>
+
+  <Target Name="BuildNativeSandboxHelper" BeforeTargets="BeforeBuild"
+          Inputs="$(MSBuildProjectDirectory)/native/limiting_factor_helper.c"
+          Outputs="$(NativeHelperOut)">
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(NativeHelperOut)'))" />
+    <Exec Command="cc -std=c17 -O2 -fPIE -pie -D_FORTIFY_SOURCE=3 -fstack-protector-strong -Wall -Wextra -Werror -Wl,-z,relro,-z,now -o &quot;$(NativeHelperOut)&quot; &quot;$(MSBuildProjectDirectory)/native/limiting_factor_helper.c&quot;" />
+  </Target>
+
+  <Target Name="IncludeNativeSandboxHelper" AfterTargets="BuildNativeSandboxHelper" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <Content Include="$(NativeHelperOut)"
+               CopyToOutputDirectory="PreserveNewest"
+               Link="runtimes/$(NativeHelperRid)/native/limiting-factor-helper"
+               Pack="true"
+               PackagePath="runtimes/$(NativeHelperRid)/native" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

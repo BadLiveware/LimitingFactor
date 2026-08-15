@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>LimitingFactor</AssemblyName>
+    <RootNamespace>LimitingFactor</RootNamespace>
+    <Description>Usable Linux process sandboxing with transparent filesystem approvals.</Description>
+    <Version>0.1.0</Version>
+    <Authors>Limiting Factor contributors</Authors>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../LimitingFactor.LowLevel/LimitingFactor.LowLevel.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

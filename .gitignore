@@ -1,0 +1,9 @@
+bin/
+obj/
+artifacts/
+TestResults/
+.excession/
+*.user
+*.suo
+.idea/
+.vscode/

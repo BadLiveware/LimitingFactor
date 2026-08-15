@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LimitingFactor.Native/LimitingFactor.Native.csproj" />
+    <Project Path="src/LimitingFactor.LowLevel/LimitingFactor.LowLevel.csproj" />
+    <Project Path="src/LimitingFactor/LimitingFactor.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LimitingFactor.Tests/LimitingFactor.Tests.csproj" />
+  </Folder>
+</Solution>
