@@ -140,6 +140,18 @@ The host source remains unchanged until `ApplyChanges`. Apply checks source iden
 - COW change reporting represents renames as OverlayFS entry changes rather than a rename event.
 - External daemons such as Docker do not inherit this process boundary.
 
+## Publishing
+
+NuGet.org publishing uses GitHub Actions trusted publishing, so the repository stores no long-lived API key. The `badliveware` NuGet.org account trusts `BadLiveware/LimitingFactor` and the workflow file `publish.yml`.
+
+To release all three packages with one version:
+
+1. Create a GitHub release whose tag is `v<semver>`, such as `v0.1.0` or `v0.2.0-beta.1`.
+2. `.github/workflows/publish.yml` restores and tests the solution, packs `LimitingFactor`, `LimitingFactor.LowLevel`, and `LimitingFactor.Native` with the tag-derived version, then authenticates to NuGet.org through OIDC.
+3. The workflow uploads the `.nupkg` files as a workflow artifact and publishes them to `https://api.nuget.org/v3/index.json`.
+
+The release fails before publishing when its tag is not a `v`-prefixed semantic version. Package IDs and versions are immutable once accepted by NuGet.org; publish corrections with a new version.
+
 ## Security boundary
 
 The helper establishes user, mount, IPC, UTS, and PID namespaces; makes inherited host mounts read-only and non-device-capable; creates a minimal private `/dev`; drops target capabilities; and installs a seccomp filter that blocks mount, namespace, ptrace, and `io_uring` setup escape surfaces. Direct-RW grants remain genuine host writes and should be scoped narrowly.

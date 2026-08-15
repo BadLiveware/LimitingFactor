@@ -1,0 +1,82 @@
+name: Publish NuGet packages
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: nuget-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate release tag
+        id: version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          core='(0|[1-9][0-9]*)'
+          identifier='(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)'
+          pattern="^v(${core}\\.${core}\\.${core}(-${identifier}(\\.${identifier})*)?)$"
+          if [[ ! "$RELEASE_TAG" =~ $pattern ]]; then
+            echo "Release tag must be a canonical SemVer version prefixed with v (for example, v0.1.0)." >&2
+            exit 1
+          fi
+          echo "value=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore LimitingFactor.slnx
+
+      - name: Test
+        run: dotnet test LimitingFactor.slnx --configuration Release --no-restore -p:ContinuousIntegrationBuild=true
+
+      - name: Pack release
+        shell: bash
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          mkdir -p artifacts
+          dotnet pack src/LimitingFactor.Native/LimitingFactor.Native.csproj --configuration Release --no-restore --output artifacts -p:Version="$PACKAGE_VERSION" -p:ContinuousIntegrationBuild=true
+          dotnet pack src/LimitingFactor.LowLevel/LimitingFactor.LowLevel.csproj --configuration Release --no-restore --output artifacts -p:Version="$PACKAGE_VERSION" -p:ContinuousIntegrationBuild=true
+          dotnet pack src/LimitingFactor/LimitingFactor.csproj --configuration Release --no-restore --output artifacts -p:Version="$PACKAGE_VERSION" -p:ContinuousIntegrationBuild=true
+
+      - name: Upload release packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-${{ steps.version.outputs.value }}
+          path: artifacts/*.nupkg
+          if-no-files-found: error
+
+      - name: Authenticate to NuGet.org
+        id: nuget
+        uses: NuGet/login@v1
+        with:
+          user: badliveware
+
+      - name: Publish to NuGet.org
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ steps.nuget.outputs.NUGET_API_KEY }}
+        run: |
+          for package in artifacts/*.nupkg; do
+            dotnet nuget push "$package" \
+              --source https://api.nuget.org/v3/index.json \
+              --api-key "$NUGET_API_KEY" \
+              --skip-duplicate
+          done

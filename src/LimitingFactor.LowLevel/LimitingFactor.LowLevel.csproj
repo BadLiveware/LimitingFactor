@@ -4,8 +4,6 @@
     <AssemblyName>LimitingFactor.LowLevel</AssemblyName>
     <RootNamespace>LimitingFactor.LowLevel</RootNamespace>
     <Description>Resource-safe Linux namespace, FUSE approval, and OverlayFS process-sandbox mechanisms.</Description>
-    <Version>0.1.0</Version>
-    <Authors>Limiting Factor contributors</Authors>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsTrimmable>true</IsTrimmable>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>

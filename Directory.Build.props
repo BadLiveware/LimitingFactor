@@ -5,5 +5,13 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
     <Deterministic>true</Deterministic>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <Authors>BadLiveware</Authors>
+    <Company>BadLiveware</Company>
+    <PackageProjectUrl>https://github.com/BadLiveware/LimitingFactor</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/BadLiveware/LimitingFactor.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>linux;sandbox;process;isolation;fuse;overlayfs</PackageTags>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
   </PropertyGroup>
 </Project>

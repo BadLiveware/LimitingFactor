@@ -4,8 +4,6 @@
     <AssemblyName>LimitingFactor.Native</AssemblyName>
     <RootNamespace>LimitingFactor.Native</RootNamespace>
     <Description>Native Linux namespace and mount helper packaged for LimitingFactor.</Description>
-    <Version>0.1.0</Version>
-    <Authors>Limiting Factor contributors</Authors>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsTrimmable>true</IsTrimmable>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
