@@ -157,3 +157,7 @@ The release fails before publishing when its tag is not a `v`-prefixed semantic 
 The helper establishes user, mount, IPC, UTS, and PID namespaces; makes inherited host mounts read-only and non-device-capable; creates a minimal private `/dev`; drops target capabilities; and installs a seccomp filter that blocks mount, namespace, ptrace, and `io_uring` setup escape surfaces. Direct-RW grants remain genuine host writes and should be scoped narrowly.
 
 Limiting Factor is intended to constrain local tools and process trees. It is not presented as a hostile multi-tenant container runtime.
+
+## License
+
+Limiting Factor is licensed under the [MIT License](LICENSE).
