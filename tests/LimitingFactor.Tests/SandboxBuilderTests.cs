@@ -218,6 +218,41 @@ public sealed class SandboxBuilderTests
     }
 
     [Fact]
+    public async Task Nested_grant_capture_state_is_not_writable_from_the_sandbox()
+    {
+        var support = SandboxSupport.Get(requireFuse: false, requireOverlay: false);
+        if (!support.IsAvailable)
+        {
+            Assert.Skip(support.Reason);
+        }
+
+        using var parent = new TemporaryDirectory();
+        var working = Directory.CreateDirectory(Path.Combine(parent.Path, "workspace")).FullName;
+        var readOnly = Directory.CreateDirectory(Path.Combine(parent.Path, "read-only")).FullName;
+        var marker = Path.Combine(readOnly, "marker.txt");
+        await File.WriteAllTextAsync(marker, "host", TestContext.Current.CancellationToken);
+        var policy = new SandboxBuilder()
+            .WithWorkingDirectory(working)
+            .AddGrant(parent.Path, SandboxAccessMode.ReadWrite)
+            .AddGrant(readOnly, SandboxAccessMode.ReadOnly)
+            .Build();
+        var command = new ProcessStartInfo("sh");
+        command.ArgumentList.Add("-c");
+        command.ArgumentList.Add(
+            "for path in \"${TMPDIR:-/tmp}\"/limiting-factor-mounts-*/*; do " +
+            "if [ -f \"$path/marker.txt\" ]; then printf bypass > \"$path/marker.txt\"; fi; done");
+
+        await using var session = await Sandbox.StartAsync(
+            policy,
+            command,
+            TestContext.Current.CancellationToken);
+        await session.WaitForExitAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, session.Process.ExitCode);
+        Assert.Equal("host", await File.ReadAllTextAsync(marker, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task Most_specific_nested_copy_on_write_overrides_read_write_parents()
     {
         var support = SandboxSupport.Get(requireFuse: false, requireOverlay: true);

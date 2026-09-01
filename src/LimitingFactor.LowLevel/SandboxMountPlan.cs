@@ -41,6 +41,7 @@ internal sealed class SandboxMountPlan : IDisposable
     }
 
     public IReadOnlyList<SandboxMount> Mounts { get; }
+    public string? StateRoot => string.IsNullOrEmpty(_stateRoot) ? null : _stateRoot;
 
     private string CreateBackingPath(string path)
     {

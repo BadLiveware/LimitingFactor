@@ -48,7 +48,8 @@ public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
             var startInfo = BuildStartInfo(
                 options with { Mounts = mountPlan.Mounts },
                 approvalRoots.Keys,
-                socketPath);
+                socketPath,
+                mountPlan.StateRoot);
             process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("The native sandbox helper did not start.");
 
@@ -183,7 +184,8 @@ public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
     private static ProcessStartInfo BuildStartInfo(
         SandboxLaunchOptions options,
         IEnumerable<string> approvalRoots,
-        string socketPath)
+        string socketPath,
+        string? mountStateRoot)
     {
         var startInfo = new ProcessStartInfo(NativeSandboxHelper.GetPath())
         {
@@ -258,6 +260,10 @@ public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
         foreach (var root in approvalRoots)
         {
             AddArguments(startInfo, "--approval", root);
+        }
+        if (mountStateRoot is not null)
+        {
+            AddArguments(startInfo, "--hide", mountStateRoot);
         }
         AddArguments(startInfo, "--chdir", options.WorkingDirectory, "--", options.FileName);
         foreach (var argument in options.Arguments)

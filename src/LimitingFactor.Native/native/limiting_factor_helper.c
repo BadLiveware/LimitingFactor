@@ -553,6 +553,12 @@ int main(int argc, char **argv)
             require_arguments(index, 2, argc, option);
             bind_mount(argv[index], argv[index + 1], false);
             index += 2;
+        } else if (strcmp(option, "--hide") == 0) {
+            require_arguments(index, 1, argc, option);
+            if (mount("tmpfs", argv[index], "tmpfs", MS_NOSUID | MS_NOEXEC | MS_NODEV,
+                    "mode=000,size=4k") < 0)
+                fail_value("hide mount capture state", argv[index]);
+            index += 1;
         } else if (strcmp(option, "--control") == 0) {
             require_arguments(index, 1, argc, option);
             control_fd = connect_control(argv[index++]);
