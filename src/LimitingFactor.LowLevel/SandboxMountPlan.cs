@@ -29,16 +29,24 @@ internal sealed class SandboxMountPlan : IDisposable
         _stateRoot = Path.Combine(
             Path.GetTempPath(),
             $"limiting-factor-mounts-{Environment.ProcessId}-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(
-            _stateRoot,
-            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        var backingPaths = overlappingPaths.ToDictionary(
-            static path => path,
-            CreateBackingPath,
-            StringComparer.Ordinal);
-        Mounts = mounts
-            .Select(mount => Capture(mount, backingPaths.GetValueOrDefault(MountPath(mount))))
-            .ToArray();
+        try
+        {
+            Directory.CreateDirectory(
+                _stateRoot,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            var backingPaths = overlappingPaths.ToDictionary(
+                static path => path,
+                CreateBackingPath,
+                StringComparer.Ordinal);
+            Mounts = mounts
+                .Select(mount => Capture(mount, backingPaths.GetValueOrDefault(MountPath(mount))))
+                .ToArray();
+        }
+        catch
+        {
+            DeleteStateRoot(_stateRoot);
+            throw;
+        }
     }
 
     public IReadOnlyList<SandboxMount> Mounts { get; }
@@ -99,9 +107,14 @@ internal sealed class SandboxMountPlan : IDisposable
         }
 
         _disposed = true;
-        if (Directory.Exists(_stateRoot))
+        DeleteStateRoot(_stateRoot);
+    }
+
+    private static void DeleteStateRoot(string path)
+    {
+        if (Directory.Exists(path))
         {
-            Directory.Delete(_stateRoot, recursive: true);
+            Directory.Delete(path, recursive: true);
         }
     }
 }

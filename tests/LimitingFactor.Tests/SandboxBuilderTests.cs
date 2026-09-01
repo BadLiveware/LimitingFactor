@@ -249,19 +249,27 @@ public sealed class SandboxBuilderTests
             .AddGrant(parent.Path, SandboxAccessMode.ReadWrite)
             .AddGrant(readOnly, SandboxAccessMode.ReadOnly)
             .Build();
-        var command = new ProcessStartInfo("sh");
+        var command = new ProcessStartInfo("sh")
+        {
+            RedirectStandardOutput = true,
+        };
         command.ArgumentList.Add("-c");
         command.ArgumentList.Add(
-            "for path in \"${TMPDIR:-/tmp}\"/limiting-factor-mounts-*/*; do " +
+            "root=$(find \"${TMPDIR:-/tmp}\" -maxdepth 1 -type d -name 'limiting-factor-mounts-*' -print -quit); " +
+            "test -n \"$root\"; " +
+            "printf '%s' \"$root\"; " +
+            "for path in \"$root\"/*; do " +
             "if [ -f \"$path/marker.txt\" ]; then printf bypass > \"$path/marker.txt\"; fi; done");
 
         await using var session = await Sandbox.StartAsync(
             policy,
             command,
             TestContext.Current.CancellationToken);
+        var discoveredStateRoot = session.Process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
         await session.WaitForExitAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(0, session.Process.ExitCode);
+        Assert.Contains("limiting-factor-mounts-", await discoveredStateRoot, StringComparison.Ordinal);
         Assert.Equal("host", await File.ReadAllTextAsync(marker, TestContext.Current.CancellationToken));
     }
 

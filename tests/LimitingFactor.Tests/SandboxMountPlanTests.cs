@@ -7,7 +7,7 @@ namespace LimitingFactor.Tests;
 public sealed class SandboxMountPlanTests
 {
     [Fact]
-    public void Nested_mounts_capture_child_sources_before_parent_mounts_apply()
+    public void Nested_mounts_are_transformed_to_distinct_captured_sources()
     {
         using var parent = new TemporaryDirectory();
         var readWrite = Directory.CreateDirectory(Path.Combine(parent.Path, "read-write")).FullName;
