@@ -43,16 +43,14 @@ public static class Sandbox
             .ToArray();
         try
         {
-            var mounts = new List<SandboxMount>();
-            mounts.AddRange(policy.Grants
-                .Where(static grant => grant.Mode == SandboxAccessMode.ReadWrite)
-                .Select(static grant => new SandboxMount.ReadWrite(grant.Path)));
-            mounts.AddRange(copyOnWrite.Select(state =>
-                new SandboxMount.Overlay(
-                    state.SourceRoot,
-                    state.LowerRoot,
-                    state.UpperRoot,
-                    state.WorkRoot)));
+            var overlays = copyOnWrite.ToDictionary(
+                static state => state.SourceRoot,
+                StringComparer.Ordinal);
+            var mounts = policy.Grants
+                .OrderBy(static grant => PathDepth(grant.Path))
+                .ThenBy(static grant => grant.Path, StringComparer.Ordinal)
+                .Select(grant => CreateMount(grant, overlays))
+                .ToArray();
 
             var options = new SandboxLaunchOptions
             {
@@ -82,6 +80,30 @@ public static class Sandbox
             throw;
         }
     }
+
+    private static SandboxMount CreateMount(
+        SandboxGrant grant,
+        IReadOnlyDictionary<string, CopyOnWriteOverlay> overlays)
+    {
+        if (grant.Mode == SandboxAccessMode.ReadWrite)
+        {
+            return new SandboxMount.ReadWrite(grant.Path);
+        }
+        if (grant.Mode == SandboxAccessMode.ReadOnly)
+        {
+            return new SandboxMount.ReadOnly(grant.Path);
+        }
+
+        var overlay = overlays[grant.Path];
+        return new SandboxMount.Overlay(
+            overlay.SourceRoot,
+            overlay.LowerRoot,
+            overlay.UpperRoot,
+            overlay.WorkRoot);
+    }
+
+    private static int PathDepth(string path) =>
+        path.Count(static character => character == Path.DirectorySeparatorChar);
 
     private sealed class ApproverAdapter(
         ISandboxAccessApprover approver,

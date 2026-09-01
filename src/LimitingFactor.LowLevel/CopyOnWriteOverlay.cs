@@ -23,6 +23,11 @@ public sealed partial class CopyOnWriteOverlay : IDisposable
     public CopyOnWriteOverlay(string sourceRoot)
     {
         _sourceRoot = SandboxPath.Normalize(sourceRoot);
+        if (MountTable.HasDescendantMount(_sourceRoot, File.ReadLines("/proc/self/mountinfo")))
+        {
+            throw new NotSupportedException(
+                $"Copy-on-write source '{_sourceRoot}' contains a mounted subtree. Nested mount reconstruction is not supported.");
+        }
         _stateRoot = Path.Combine(
             Path.GetTempPath(),
             $"limiting-factor-cow-{Environment.ProcessId}-{Guid.NewGuid():N}");

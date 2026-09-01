@@ -132,9 +132,11 @@ The host source remains unchanged until `ApplyChanges`. Apply checks source iden
 
 ## Policy constraints
 
+- Native grants can nest. Mounts apply from parent to child, so the most specific path controls access within its subtree.
+- Repeating the exact same native grant path with different modes is rejected because no path is more specific.
 - Native grants and approval roots must be disjoint.
-- Native grants with overlapping path trees are rejected.
 - The current implementation supports one COW grant per session.
+- COW roots that contain mounted subtrees are rejected because OverlayFS lower directories do not preserve nested mounts.
 - Approval roots do not yet support rename, links, symlinks, arbitrary ioctls, or full xattr/ACL/locking fidelity.
 - COW apply rejects staged special files and symlinks.
 - COW change reporting represents renames as OverlayFS entry changes rather than a rename event.

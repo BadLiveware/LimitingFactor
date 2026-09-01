@@ -207,7 +207,12 @@ static void bind_mount(const char *source, const char *destination, bool read_on
         fail_value(read_only ? "make mount tree read-only" : "make mount tree writable", destination);
 }
 
-static void mount_overlay(const char *source, const char *lower, const char *upper, const char *work)
+static void mount_overlay(
+    const char *source,
+    const char *destination,
+    const char *lower,
+    const char *upper,
+    const char *work)
 {
     char *state = strdup(lower);
     if (state == NULL)
@@ -222,7 +227,7 @@ static void mount_overlay(const char *source, const char *lower, const char *upp
 
     bind_mount(state, state, false);
     bind_mount(source, lower, false);
-    bind_mount(source, source, false);
+    bind_mount(source, destination, false);
 
     size_t length = strlen(lower) + strlen(upper) + strlen(work) + 160;
     char *options = malloc(length);
@@ -242,9 +247,9 @@ static void mount_overlay(const char *source, const char *lower, const char *upp
         fail("format overlay options");
     }
 
-    if (mount("overlay", source, "overlay", MS_NOSUID, options) < 0) {
+    if (mount("overlay", destination, "overlay", MS_NOSUID, options) < 0) {
         free(options);
-        fail_value("mount overlay", source);
+        fail_value("mount overlay", destination);
     }
 
     if (mount("tmpfs", state, "tmpfs", MS_NOSUID | MS_NOEXEC | MS_NODEV,
@@ -544,7 +549,17 @@ int main(int argc, char **argv)
 
     while (index < argc) {
         const char *option = argv[index++];
-        if (strcmp(option, "--control") == 0) {
+        if (strcmp(option, "--capture") == 0) {
+            require_arguments(index, 2, argc, option);
+            bind_mount(argv[index], argv[index + 1], false);
+            index += 2;
+        } else if (strcmp(option, "--hide") == 0) {
+            require_arguments(index, 1, argc, option);
+            if (mount("tmpfs", argv[index], "tmpfs", MS_NOSUID | MS_NOEXEC | MS_NODEV,
+                    "mode=000,size=4k") < 0)
+                fail_value("hide mount capture state", argv[index]);
+            index += 1;
+        } else if (strcmp(option, "--control") == 0) {
             require_arguments(index, 1, argc, option);
             control_fd = connect_control(argv[index++]);
         } else if (strcmp(option, "--approval") == 0) {
@@ -555,17 +570,21 @@ int main(int argc, char **argv)
             }
             mount_approval_root(control_fd, approval_tag++, argv[index++]);
         } else if (strcmp(option, "--rw") == 0) {
-            require_arguments(index, 1, argc, option);
-            bind_mount(argv[index], argv[index], false);
-            index += 1;
+            require_arguments(index, 2, argc, option);
+            bind_mount(argv[index], argv[index + 1], false);
+            index += 2;
+        } else if (strcmp(option, "--ro") == 0) {
+            require_arguments(index, 2, argc, option);
+            bind_mount(argv[index], argv[index + 1], true);
+            index += 2;
         } else if (strcmp(option, "--gateway") == 0) {
             require_arguments(index, 2, argc, option);
             bind_mount(argv[index], argv[index + 1], false);
             index += 2;
         } else if (strcmp(option, "--overlay") == 0) {
-            require_arguments(index, 4, argc, option);
-            mount_overlay(argv[index], argv[index + 1], argv[index + 2], argv[index + 3]);
-            index += 4;
+            require_arguments(index, 5, argc, option);
+            mount_overlay(argv[index], argv[index + 1], argv[index + 2], argv[index + 3], argv[index + 4]);
+            index += 5;
         } else if (strcmp(option, "--chdir") == 0) {
             require_arguments(index, 1, argc, option);
             working_directory = argv[index++];

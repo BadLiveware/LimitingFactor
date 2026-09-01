@@ -43,22 +43,27 @@ public sealed class SandboxBuilder
             throw new DirectoryNotFoundException($"Sandbox working directory '{_workingDirectory}' does not exist.");
         }
 
-        var grants = _grants
-            .Append(new SandboxGrant(_workingDirectory, SandboxAccessMode.ReadWrite))
+        var requestedGrants = _grants
             .DistinctBy(static grant => (grant.Path, grant.Mode))
-            .ToImmutableArray();
+            .ToList();
+        var workingDirectoryGrant = requestedGrants
+            .Where(grant => SandboxPath.Contains(grant.Path, _workingDirectory))
+            .OrderByDescending(static grant => grant.Path.Length)
+            .FirstOrDefault();
+        if (workingDirectoryGrant?.Mode is not SandboxAccessMode.ReadWrite)
+        {
+            requestedGrants.Add(new SandboxGrant(_workingDirectory, SandboxAccessMode.ReadWrite));
+        }
+        var grants = requestedGrants.ToImmutableArray();
         var approvalRoots = _approvalRoots.Distinct(StringComparer.Ordinal).ToImmutableArray();
 
-        for (var index = 0; index < grants.Length; index++)
+        var conflictingGrant = grants
+            .GroupBy(static grant => grant.Path, StringComparer.Ordinal)
+            .FirstOrDefault(static group => group.Select(static grant => grant.Mode).Distinct().Count() > 1);
+        if (conflictingGrant is not null)
         {
-            var overlap = grants.Skip(index + 1).FirstOrDefault(other =>
-                SandboxPath.Overlaps(grants[index].Path, other.Path));
-            if (overlap is not null)
-            {
-                throw new InvalidOperationException(
-                    $"Sandbox grants '{grants[index].Path}' ({grants[index].Mode}) and " +
-                    $"'{overlap.Path}' ({overlap.Mode}) overlap. Native grant trees must be disjoint.");
-            }
+            throw new InvalidOperationException(
+                $"Sandbox grants for the same path '{conflictingGrant.Key}' must use one access mode.");
         }
 
         foreach (var root in approvalRoots)
