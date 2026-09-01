@@ -43,10 +43,16 @@ public sealed class SandboxBuilder
             throw new DirectoryNotFoundException($"Sandbox working directory '{_workingDirectory}' does not exist.");
         }
 
-        var grants = _grants
-            .Append(new SandboxGrant(_workingDirectory, SandboxAccessMode.ReadWrite))
+        var requestedGrants = _grants
             .DistinctBy(static grant => (grant.Path, grant.Mode))
-            .ToImmutableArray();
+            .ToList();
+        if (!requestedGrants.Any(grant =>
+            grant.Mode == SandboxAccessMode.ReadWrite
+            && SandboxPath.Contains(grant.Path, _workingDirectory)))
+        {
+            requestedGrants.Add(new SandboxGrant(_workingDirectory, SandboxAccessMode.ReadWrite));
+        }
+        var grants = requestedGrants.ToImmutableArray();
         var approvalRoots = _approvalRoots.Distinct(StringComparer.Ordinal).ToImmutableArray();
 
         for (var index = 0; index < grants.Length; index++)

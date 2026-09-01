@@ -133,7 +133,7 @@ The host source remains unchanged until `ApplyChanges`. Apply checks source iden
 ## Policy constraints
 
 - Native grants and approval roots must be disjoint.
-- Native grants with overlapping path trees are rejected.
+- Native grants with overlapping path trees are rejected, except that a direct read-write parent can cover the working directory.
 - The current implementation supports one COW grant per session.
 - Approval roots do not yet support rename, links, symlinks, arbitrary ioctls, or full xattr/ACL/locking fidelity.
 - COW apply rejects staged special files and symlinks.

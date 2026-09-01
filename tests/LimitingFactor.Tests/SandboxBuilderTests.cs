@@ -22,6 +22,55 @@ public sealed class SandboxBuilderTests
     }
 
     [Fact]
+    public void Build_uses_an_explicit_read_write_parent_as_the_working_directory_grant()
+    {
+        using var parent = new TemporaryDirectory();
+        var working = Directory.CreateDirectory(Path.Combine(parent.Path, "workspace")).FullName;
+
+        var policy = new SandboxBuilder()
+            .WithWorkingDirectory(working)
+            .AddGrant(parent.Path, SandboxAccessMode.ReadWrite)
+            .Build();
+
+        var grant = Assert.Single(policy.Grants);
+        Assert.Equal(parent.Path, grant.Path);
+        Assert.Equal(SandboxAccessMode.ReadWrite, grant.Mode);
+    }
+
+    [Fact]
+    public async Task Read_write_parent_covers_the_working_directory_and_siblings()
+    {
+        var support = SandboxSupport.Get(requireFuse: false, requireOverlay: false);
+        if (!support.IsAvailable)
+        {
+            Assert.Skip(support.Reason);
+        }
+
+        using var parent = new TemporaryDirectory();
+        var working = Directory.CreateDirectory(Path.Combine(parent.Path, "workspace")).FullName;
+        var sibling = Directory.CreateDirectory(Path.Combine(parent.Path, "sibling")).FullName;
+        var workingOutput = Path.Combine(working, "working.txt");
+        var siblingOutput = Path.Combine(sibling, "sibling.txt");
+        var policy = new SandboxBuilder()
+            .WithWorkingDirectory(working)
+            .AddGrant(parent.Path, SandboxAccessMode.ReadWrite)
+            .Build();
+        var command = new ProcessStartInfo("sh");
+        command.ArgumentList.Add("-c");
+        command.ArgumentList.Add($"printf working > {QuoteShell(workingOutput)} && printf sibling > {QuoteShell(siblingOutput)}");
+
+        await using var session = await Sandbox.StartAsync(
+            policy,
+            command,
+            TestContext.Current.CancellationToken);
+        await session.WaitForExitAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, session.Process.ExitCode);
+        Assert.Equal("working", await File.ReadAllTextAsync(workingOutput, TestContext.Current.CancellationToken));
+        Assert.Equal("sibling", await File.ReadAllTextAsync(siblingOutput, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public void Approval_roots_require_an_approver()
     {
         using var working = new TemporaryDirectory();
