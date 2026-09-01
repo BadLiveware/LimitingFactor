@@ -32,6 +32,23 @@ public sealed class SandboxMountPlanTests
         Assert.True(Directory.Exists(overlayMount.BackingPath));
     }
 
+    [Fact]
+    public void Duplicate_nested_mounts_share_one_captured_source()
+    {
+        using var parent = new TemporaryDirectory();
+        var child = Directory.CreateDirectory(Path.Combine(parent.Path, "child")).FullName;
+
+        using var plan = new SandboxMountPlan([
+            new SandboxMount.ReadWrite(parent.Path),
+            new SandboxMount.ReadWrite(child),
+            new SandboxMount.ReadWrite(child),
+        ]);
+
+        var captured = plan.Mounts.OfType<SandboxMount.CapturedReadWrite>().ToArray();
+        Assert.Equal(2, captured.Length);
+        Assert.Equal(captured[0].BackingPath, captured[1].BackingPath);
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

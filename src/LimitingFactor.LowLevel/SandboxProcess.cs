@@ -42,9 +42,10 @@ public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
 
         Process? process = null;
         var mounts = new List<ApprovalMount>();
-        var mountPlan = new SandboxMountPlan(options.Mounts);
+        SandboxMountPlan? mountPlan = null;
         try
         {
+            mountPlan = new SandboxMountPlan(options.Mounts);
             var startInfo = BuildStartInfo(
                 options with { Mounts = mountPlan.Mounts },
                 approvalRoots.Keys,
@@ -99,7 +100,7 @@ public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
             {
                 mount.Dispose();
             }
-            mountPlan.Dispose();
+            mountPlan?.Dispose();
             throw;
         }
         finally

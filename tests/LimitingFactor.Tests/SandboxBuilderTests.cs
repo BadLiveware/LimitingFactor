@@ -168,6 +168,19 @@ public sealed class SandboxBuilderTests
     }
 
     [Fact]
+    public void Native_grants_reject_undefined_access_modes()
+    {
+        using var working = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => new SandboxBuilder()
+            .WithWorkingDirectory(working.Path)
+            .AddGrant(external.Path, (SandboxAccessMode)999));
+
+        Assert.Equal("mode", exception.ParamName);
+    }
+
+    [Fact]
     public void Native_grants_reject_different_modes_for_the_exact_same_path()
     {
         using var working = new TemporaryDirectory();

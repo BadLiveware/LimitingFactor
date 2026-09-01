@@ -13,6 +13,7 @@ internal sealed class SandboxMountPlan : IDisposable
         var overlappingPaths = mounts
             .Where(static mount => mount is not SandboxMount.Gateway)
             .Select(MountPath)
+            .Distinct(StringComparer.Ordinal)
             .Where(path => mounts.Any(mount =>
                 mount is not SandboxMount.Gateway
                 && !string.Equals(MountPath(mount), path, StringComparison.Ordinal)
