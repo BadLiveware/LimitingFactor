@@ -115,17 +115,145 @@ public sealed class SandboxBuilderTests
     }
 
     [Fact]
-    public void Native_grants_cannot_overlap_with_different_modes()
+    public void Native_grants_allow_nested_modes_and_keep_the_most_specific_grant()
+    {
+        using var parent = new TemporaryDirectory();
+        var working = Directory.CreateDirectory(Path.Combine(parent.Path, "workspace")).FullName;
+        var nested = Directory.CreateDirectory(Path.Combine(parent.Path, "nested")).FullName;
+
+        var policy = new SandboxBuilder()
+            .WithWorkingDirectory(working)
+            .AddGrant(parent.Path, SandboxAccessMode.ReadWrite)
+            .AddGrant(nested, SandboxAccessMode.CopyOnWrite)
+            .Build();
+
+        Assert.Contains(policy.Grants, grant =>
+            grant.Path == parent.Path && grant.Mode == SandboxAccessMode.ReadWrite);
+        Assert.Contains(policy.Grants, grant =>
+            grant.Path == nested && grant.Mode == SandboxAccessMode.CopyOnWrite);
+    }
+
+    [Fact]
+    public void Build_preserves_a_writable_working_directory_below_a_more_specific_read_only_parent()
+    {
+        using var parent = new TemporaryDirectory();
+        var readOnly = Directory.CreateDirectory(Path.Combine(parent.Path, "read-only")).FullName;
+        var working = Directory.CreateDirectory(Path.Combine(readOnly, "workspace")).FullName;
+
+        var policy = new SandboxBuilder()
+            .WithWorkingDirectory(working)
+            .AddGrant(parent.Path, SandboxAccessMode.ReadWrite)
+            .AddGrant(readOnly, SandboxAccessMode.ReadOnly)
+            .Build();
+
+        Assert.Contains(policy.Grants, grant =>
+            grant.Path == working && grant.Mode == SandboxAccessMode.ReadWrite);
+    }
+
+    [Fact]
+    public void Native_grants_allow_a_read_only_child_to_override_a_read_write_parent()
+    {
+        using var parent = new TemporaryDirectory();
+        var working = Directory.CreateDirectory(Path.Combine(parent.Path, "workspace")).FullName;
+        var readOnly = Directory.CreateDirectory(Path.Combine(parent.Path, "read-only")).FullName;
+
+        var policy = new SandboxBuilder()
+            .WithWorkingDirectory(working)
+            .AddGrant(parent.Path, SandboxAccessMode.ReadWrite)
+            .AddGrant(readOnly, SandboxAccessMode.ReadOnly)
+            .Build();
+
+        Assert.Contains(policy.Grants, grant =>
+            grant.Path == readOnly && grant.Mode == SandboxAccessMode.ReadOnly);
+    }
+
+    [Fact]
+    public void Native_grants_reject_different_modes_for_the_exact_same_path()
     {
         using var working = new TemporaryDirectory();
-        var child = Directory.CreateDirectory(Path.Combine(working.Path, "child")).FullName;
+        using var external = new TemporaryDirectory();
 
         var exception = Assert.Throws<InvalidOperationException>(() => new SandboxBuilder()
             .WithWorkingDirectory(working.Path)
-            .AddGrant(child, SandboxAccessMode.CopyOnWrite)
+            .AddGrant(external.Path, SandboxAccessMode.ReadWrite)
+            .AddGrant(external.Path, SandboxAccessMode.CopyOnWrite)
             .Build());
 
-        Assert.Contains("overlap", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("same path", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Most_specific_nested_read_only_grant_overrides_a_read_write_parent()
+    {
+        var support = SandboxSupport.Get(requireFuse: false, requireOverlay: false);
+        if (!support.IsAvailable)
+        {
+            Assert.Skip(support.Reason);
+        }
+
+        using var parent = new TemporaryDirectory();
+        var working = Directory.CreateDirectory(Path.Combine(parent.Path, "workspace")).FullName;
+        var readOnly = Directory.CreateDirectory(Path.Combine(parent.Path, "read-only")).FullName;
+        var writableOutput = Path.Combine(parent.Path, "writable.txt");
+        var blockedOutput = Path.Combine(readOnly, "blocked.txt");
+        var policy = new SandboxBuilder()
+            .WithWorkingDirectory(working)
+            .AddGrant(parent.Path, SandboxAccessMode.ReadWrite)
+            .AddGrant(readOnly, SandboxAccessMode.ReadOnly)
+            .Build();
+        var command = new ProcessStartInfo("sh");
+        command.ArgumentList.Add("-c");
+        command.ArgumentList.Add(
+            $"printf writable > {QuoteShell(writableOutput)} && ! printf blocked > {QuoteShell(blockedOutput)}");
+
+        await using var session = await Sandbox.StartAsync(
+            policy,
+            command,
+            TestContext.Current.CancellationToken);
+        await session.WaitForExitAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, session.Process.ExitCode);
+        Assert.Equal("writable", await File.ReadAllTextAsync(writableOutput, TestContext.Current.CancellationToken));
+        Assert.False(File.Exists(blockedOutput));
+    }
+
+    [Fact]
+    public async Task Most_specific_nested_copy_on_write_overrides_read_write_parents()
+    {
+        var support = SandboxSupport.Get(requireFuse: false, requireOverlay: true);
+        if (!support.IsAvailable)
+        {
+            Assert.Skip(support.Reason);
+        }
+
+        using var parent = new TemporaryDirectory();
+        var working = Directory.CreateDirectory(Path.Combine(parent.Path, "workspace")).FullName;
+        var deeper = Directory.CreateDirectory(Path.Combine(parent.Path, "deeper")).FullName;
+        var copyOnWrite = Directory.CreateDirectory(Path.Combine(deeper, "copy-on-write")).FullName;
+        var directOutput = Path.Combine(deeper, "direct.txt");
+        var stagedOutput = Path.Combine(copyOnWrite, "staged.txt");
+        var policy = new SandboxBuilder()
+            .WithWorkingDirectory(working)
+            .AddGrant(parent.Path, SandboxAccessMode.ReadWrite)
+            .AddGrant(deeper, SandboxAccessMode.ReadWrite)
+            .AddGrant(copyOnWrite, SandboxAccessMode.CopyOnWrite)
+            .Build();
+        var command = new ProcessStartInfo("sh");
+        command.ArgumentList.Add("-c");
+        command.ArgumentList.Add($"printf direct > {QuoteShell(directOutput)} && printf staged > {QuoteShell(stagedOutput)}");
+
+        await using var session = await Sandbox.StartAsync(
+            policy,
+            command,
+            TestContext.Current.CancellationToken);
+        await session.WaitForExitAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, session.Process.ExitCode);
+        Assert.Equal("direct", await File.ReadAllTextAsync(directOutput, TestContext.Current.CancellationToken));
+        Assert.False(File.Exists(stagedOutput));
+        var change = Assert.Single(session.GetChanges());
+        Assert.Equal(SandboxChangeKind.Created, change.Kind);
+        Assert.Equal(stagedOutput, change.Path);
     }
 
     [Fact]

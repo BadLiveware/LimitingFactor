@@ -10,12 +10,17 @@ namespace LimitingFactor.LowLevel;
 public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
 {
     private readonly IReadOnlyList<ApprovalMount> _approvalMounts;
+    private readonly SandboxMountPlan _mountPlan;
     private bool _disposed;
 
-    private SandboxProcess(Process process, IReadOnlyList<ApprovalMount> approvalMounts)
+    private SandboxProcess(
+        Process process,
+        IReadOnlyList<ApprovalMount> approvalMounts,
+        SandboxMountPlan mountPlan)
     {
         Process = process;
         _approvalMounts = approvalMounts;
+        _mountPlan = mountPlan;
     }
 
     public Process Process { get; }
@@ -37,9 +42,13 @@ public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
 
         Process? process = null;
         var mounts = new List<ApprovalMount>();
+        var mountPlan = new SandboxMountPlan(options.Mounts);
         try
         {
-            var startInfo = BuildStartInfo(options, approvalRoots.Keys, socketPath);
+            var startInfo = BuildStartInfo(
+                options with { Mounts = mountPlan.Mounts },
+                approvalRoots.Keys,
+                socketPath);
             process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("The native sandbox helper did not start.");
 
@@ -75,7 +84,7 @@ public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
                 mounts,
                 cancellationToken).ConfigureAwait(false);
             connection.Send([1]);
-            return new SandboxProcess(process, mounts);
+            return new SandboxProcess(process, mounts, mountPlan);
         }
         catch
         {
@@ -89,6 +98,7 @@ public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
             {
                 mount.Dispose();
             }
+            mountPlan.Dispose();
             throw;
         }
         finally
@@ -193,8 +203,32 @@ public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
         {
             switch (mount)
             {
+                case SandboxMount.CapturedReadWrite readWrite:
+                    AddArguments(startInfo, "--capture", readWrite.Path, readWrite.BackingPath);
+                    break;
+                case SandboxMount.CapturedReadOnly readOnly:
+                    AddArguments(startInfo, "--capture", readOnly.Path, readOnly.BackingPath);
+                    break;
+                case SandboxMount.CapturedOverlay overlay:
+                    AddArguments(startInfo, "--capture", overlay.SourcePath, overlay.BackingPath);
+                    break;
+            }
+        }
+        foreach (var mount in options.Mounts)
+        {
+            switch (mount)
+            {
                 case SandboxMount.ReadWrite readWrite:
-                    AddArguments(startInfo, "--rw", readWrite.Path);
+                    AddArguments(startInfo, "--rw", readWrite.Path, readWrite.Path);
+                    break;
+                case SandboxMount.CapturedReadWrite readWrite:
+                    AddArguments(startInfo, "--rw", readWrite.BackingPath, readWrite.Path);
+                    break;
+                case SandboxMount.ReadOnly readOnly:
+                    AddArguments(startInfo, "--ro", readOnly.Path, readOnly.Path);
+                    break;
+                case SandboxMount.CapturedReadOnly readOnly:
+                    AddArguments(startInfo, "--ro", readOnly.BackingPath, readOnly.Path);
                     break;
                 case SandboxMount.Gateway gateway:
                     AddArguments(startInfo, "--gateway", gateway.MountPath, gateway.DestinationPath);
@@ -203,6 +237,17 @@ public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
                     AddArguments(
                         startInfo,
                         "--overlay",
+                        overlay.SourcePath,
+                        overlay.SourcePath,
+                        overlay.LowerPath,
+                        overlay.UpperPath,
+                        overlay.WorkPath);
+                    break;
+                case SandboxMount.CapturedOverlay overlay:
+                    AddArguments(
+                        startInfo,
+                        "--overlay",
+                        overlay.BackingPath,
                         overlay.SourcePath,
                         overlay.LowerPath,
                         overlay.UpperPath,
@@ -250,6 +295,7 @@ public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
         {
             mount.Dispose();
         }
+        _mountPlan.Dispose();
     }
 
     public async ValueTask DisposeAsync()
@@ -269,6 +315,7 @@ public sealed partial class SandboxProcess : IDisposable, IAsyncDisposable
         {
             mount.Dispose();
         }
+        _mountPlan.Dispose();
     }
 
     [System.Runtime.InteropServices.LibraryImport("libc", SetLastError = true)]

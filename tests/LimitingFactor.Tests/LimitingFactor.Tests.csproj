@@ -11,5 +11,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/LimitingFactor/LimitingFactor.csproj" />
+    <ProjectReference Include="../../src/LimitingFactor.LowLevel/LimitingFactor.LowLevel.csproj" />
   </ItemGroup>
 </Project>
